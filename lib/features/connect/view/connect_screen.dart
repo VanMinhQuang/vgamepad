@@ -64,7 +64,12 @@ class ConnectView extends StatelessWidget {
                           color: context.primary,
                         ),
                         const SizedBox(height: 16),
-                        Text('PC Gamepad', style: context.titleLarge),
+                        Text(
+                          'PC Gamepad',
+                          style: context.titleLarge.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           'Choose how your phone connects to the PC',
@@ -287,6 +292,16 @@ class ConnectView extends StatelessWidget {
                               ),
                             );
                           },
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () =>
+                                context.pushNamed(routeName: Routes.CONFIG),
+                            icon: const Icon(Icons.tune_rounded),
+                            label: const Text('Layout'),
+                          ),
                         ),
                         const SizedBox(height: 16),
                         Text(

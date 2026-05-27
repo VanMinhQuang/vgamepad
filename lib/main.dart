@@ -1,17 +1,27 @@
 import 'package:app_controller/app/route.dart';
 import 'package:app_controller/app/theme/theme_notifier.dart';
-import 'package:app_controller/features/connect/view/connect_screen.dart';
+import 'package:app_controller/di/injection.dart';
 import 'package:app_controller/app/app_size.dart';
 import 'package:app_controller/app/theme/app_theme.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'dart:convert';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:flutter_joystick/flutter_joystick.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-void main() {
+import 'package:flutter/services.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux)) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
+  setUpDI();
   SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft]);
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual);
   runApp(const MyApp());
 }
 

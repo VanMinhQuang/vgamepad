@@ -1,23 +1,49 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:app_controller/app/app_size.dart';
 import 'package:app_controller/app/route.dart';
 import 'package:app_controller/app/styles.dart';
+import 'package:app_controller/di/injection.dart';
+import 'package:app_controller/domain/enum/button_enum.dart';
+import 'package:app_controller/domain/models/button_layout.dart';
+import 'package:app_controller/domain/models/gamepad_layout.dart';
+import 'package:app_controller/domain/repository/gamepad_config_repo.dart';
+import 'package:app_controller/features/gamepad/cubit/gamepad_cubit.dart';
 import 'package:app_controller/features/gamepad/data/gamepad_connection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_joystick/flutter_joystick.dart';
 import 'package:vibration/vibration.dart';
 
-class GamepadScreen extends StatefulWidget {
+class GamepadScreen extends StatelessWidget {
   final GamepadConnection connection;
-
   const GamepadScreen({super.key, required this.connection});
 
   @override
-  State<GamepadScreen> createState() => _GamepadScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => GamepadCubit(sl.get<GamepadConfigRepo>())..init(),
+      child: GamepadView(connection: connection),
+    );
+  }
 }
 
-class _GamepadScreenState extends State<GamepadScreen> {
+class GamepadView extends StatefulWidget {
+  final GamepadConnection connection;
+
+  const GamepadView({super.key, required this.connection});
+
+  @override
+  State<GamepadView> createState() => _GamepadViewState();
+}
+
+class _GamepadViewState extends State<GamepadView> {
   bool? _canVibrate;
+
+  @override
+  void initState() {
+    super.initState();
+  }
 
   void _send(Map<String, dynamic> data) {
     widget.connection.send(data);
@@ -54,142 +80,256 @@ class _GamepadScreenState extends State<GamepadScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bloc = context.read<GamepadCubit>();
     return Scaffold(
+      extendBody: true,
+      extendBodyBehindAppBar: true,
       backgroundColor: context.background,
       body: SafeArea(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment.topCenter,
-              radius: 1.25,
-              colors: [context.primary.withOpacity(0.22), context.background],
-            ),
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: context.outline.withOpacity(0.16),
-                        width: 1.5.r,
-                      ),
-                    ),
-                  ),
+        top: false,
+        left: false,
+        right: false,
+        child: BlocBuilder<GamepadCubit, GamepadState>(
+          builder: (context, state) {
+            final layout = state.layout;
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.topCenter,
+                  radius: 1.25,
+                  colors: [
+                    context.primary.withOpacity(0.22),
+                    context.background,
+                  ],
                 ),
               ),
-              Positioned(
-                left: 18.dp,
-                bottom: 24.dp,
-                child: Joystick(
-                  mode: JoystickMode.all,
-                  base: _joystickBase(context),
-                  stick: _joystickStick(context),
-                  listener: (d) => _sendJoystick('left', d.x, d.y),
-                ),
-              ),
-              Positioned(
-                right: 18.dp,
-                bottom: 24.dp,
-                child: Joystick(
-                  mode: JoystickMode.all,
-                  base: _joystickBase(context),
-                  stick: _joystickStick(context),
-                  listener: (d) => _sendJoystick('right', d.x, d.y),
-                ),
-              ),
-              Positioned(
-                left: 50.dp,
-                top: 100.dp,
-                child: _DPad(onPress: _sendButton),
-              ),
-              Positioned(
-                right: 50.dp,
-                top: 100.dp,
-                child: _ABXYButtons(onPress: _sendButton),
-              ),
-              Positioned(
-                left: 0,
-                top: 0,
-                child: _ShoulderButtons(side: 'left', onPress: _sendButton),
-              ),
-              Positioned(
-                right: 0,
-                top: 0,
-                child: _ShoulderButtons(side: 'right', onPress: _sendButton),
-              ),
-              Center(
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 18.dp,
-                    vertical: 12.dp,
-                  ),
-                  decoration: BoxDecoration(
-                    color: context.surface.withOpacity(0.68),
-                    borderRadius: BorderRadius.circular(18.r),
-                    border: Border.all(color: context.outline.withOpacity(0.3)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 24.r,
-                        offset: Offset(0, 12.h),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final buttons = {
+                    for (final button in layout.buttons) button.id: button,
+                  };
+                  ButtonLayout button(ButtonEnum id) =>
+                      buttons[id.name] ??
+                      GamepadLayout.defaultLayout.buttons.firstWhere(
+                        (button) => button.id == id.name,
+                      );
+
+                  return Stack(
                     children: [
-                      Text(
-                        'Controller Pad',
-                        style: context.labelSmall.copyWith(
-                          color: context.textMuted,
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: context.outline.withOpacity(0.16),
+                                width: 1.5.r,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      SizedBox(height: 8.h),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _menuButton(context, 'SELECT', 'button_select'),
-                          SizedBox(width: 18.r),
-                          _menuButton(context, 'START', 'button_start'),
-                        ],
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.jLeft),
+                        Joystick(
+                          mode: JoystickMode.all,
+                          base: _joystickBase(
+                            context,
+                            button(ButtonEnum.jLeft).width.toDouble(),
+                          ),
+                          stick: _joystickStick(
+                            context,
+                            button(ButtonEnum.jLeft).width.toDouble(),
+                          ),
+                          listener: (d) => _sendJoystick('left', d.x, d.y),
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.jRight),
+                        Joystick(
+                          mode: JoystickMode.all,
+                          base: _joystickBase(
+                            context,
+                            button(ButtonEnum.jRight).width.toDouble(),
+                          ),
+                          stick: _joystickStick(
+                            context,
+                            button(ButtonEnum.jRight).width.toDouble(),
+                          ),
+                          listener: (d) => _sendJoystick('right', d.x, d.y),
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.dpad),
+                        _DPad(
+                          width: button(ButtonEnum.dpad).width.toDouble(),
+                          height: button(ButtonEnum.dpad).height.toDouble(),
+                          onPress: _sendButton,
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.abxy),
+                        _ABXYButtons(
+                          width: button(ButtonEnum.abxy).width.toDouble(),
+                          height: button(ButtonEnum.abxy).height.toDouble(),
+                          onPress: _sendButton,
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.lb),
+                        _ShoulderButton(
+                          label: 'LB',
+                          action: 'button_lb',
+                          onPress: _sendButton,
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.lt),
+                        _ShoulderButton(
+                          label: 'LT',
+                          action: 'button_lt',
+                          onPress: _sendButton,
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.l3),
+                        _ShoulderButton(
+                          label: 'L3',
+                          action: 'button_l3',
+                          onPress: _sendButton,
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.r3),
+                        _ShoulderButton(
+                          label: 'R3',
+                          action: 'button_r3',
+                          onPress: _sendButton,
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.rb),
+                        _ShoulderButton(
+                          label: 'RB',
+                          action: 'button_rb',
+                          onPress: _sendButton,
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.rt),
+                        _ShoulderButton(
+                          label: 'RT',
+                          action: 'button_rt',
+                          onPress: _sendButton,
+                        ),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.select),
+                        _menuButton(context, 'SELECT', 'button_select'),
+                      ),
+                      _positionedControl(
+                        constraints,
+                        button(ButtonEnum.start),
+                        _menuButton(context, 'START', 'button_start'),
+                      ),
+                      Positioned(
+                        top: 4.dp,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Row(
+                            spacing: 4.w,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TextButton.icon(
+                                onPressed: () => context.pop(),
+                                icon: Icon(
+                                  Icons.close_rounded,
+                                  color: context.textMuted,
+                                  size: 14.r,
+                                ),
+                                label: Text(
+                                  'Disconnect',
+                                  style: context.labelSmall.copyWith(
+                                    color: context.textMuted,
+                                  ),
+                                ),
+                              ),
+                              TextButton.icon(
+                                onPressed: () async {
+                                  final result = await context.pushNamed(
+                                    routeName: Routes.CONFIG,
+                                  );
+
+                                  if (result != null) {
+                                    bloc.init();
+                                  }
+                                },
+                                icon: Icon(
+                                  Icons.edit_rounded,
+                                  color: context.textMuted,
+                                  size: 14.r,
+                                ),
+                                label: Text(
+                                  'Edit',
+                                  style: context.labelSmall.copyWith(
+                                    color: context.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                ),
+                  );
+                },
               ),
-              Positioned(
-                top: 4.dp,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: TextButton.icon(
-                    onPressed: () => context.pop(),
-                    icon: Icon(
-                      Icons.close_rounded,
-                      color: context.textMuted,
-                      size: 14.r,
-                    ),
-                    label: Text(
-                      'Disconnect',
-                      style: context.labelSmall.copyWith(
-                        color: context.textMuted,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _joystickBase(BuildContext context) => Container(
-    width: 132.r,
-    height: 132.r,
+  Widget _positionedControl(
+    BoxConstraints constraints,
+    ButtonLayout button,
+    Widget child,
+  ) {
+    final width = button.width.toDouble().clamp(36.0, constraints.maxWidth);
+    final height = button.height.toDouble().clamp(32.0, constraints.maxHeight);
+    final left = (button.x.toDouble() * constraints.maxWidth).clamp(
+      0.0,
+      constraints.maxWidth - width,
+    );
+    final top = (button.y.toDouble() * constraints.maxHeight).clamp(
+      0.0,
+      constraints.maxHeight - height,
+    );
+
+    return Positioned(
+      left: left.toDouble(),
+      top: top.toDouble(),
+      width: width.toDouble(),
+      height: height.toDouble(),
+      child: child,
+    );
+  }
+
+  Widget _joystickBase(BuildContext context, double size) => Container(
+    width: size,
+    height: size,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: context.card.withOpacity(0.92),
@@ -204,9 +344,9 @@ class _GamepadScreenState extends State<GamepadScreen> {
     ),
   );
 
-  Widget _joystickStick(BuildContext context) => Container(
-    width: 54.r,
-    height: 54.r,
+  Widget _joystickStick(BuildContext context, double size) => Container(
+    width: size * 0.41,
+    height: size * 0.41,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: context.primary,
@@ -231,8 +371,8 @@ class _GamepadScreenState extends State<GamepadScreen> {
         onTapUp: (_) => _sendButton(action, false),
         onTapCancel: () => _sendButton(action, false),
         child: Container(
-          width: 108.r,
-          height: 42.r,
+          width: double.infinity,
+          height: double.infinity,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20.r),
@@ -252,11 +392,17 @@ class _GamepadScreenState extends State<GamepadScreen> {
 }
 
 class _DPad extends StatelessWidget {
+  final double width;
+  final double height;
   final void Function(String, bool) onPress;
 
-  const _DPad({required this.onPress});
+  const _DPad({
+    required this.width,
+    required this.height,
+    required this.onPress,
+  });
 
-  Widget _btn(BuildContext context, IconData icon, String action) {
+  Widget _btn(BuildContext context, IconData icon, String action, double size) {
     return Material(
       color: context.card.withOpacity(0.95),
       borderRadius: BorderRadius.circular(8.r),
@@ -266,8 +412,8 @@ class _DPad extends StatelessWidget {
         onTapUp: (_) => onPress(action, false),
         onTapCancel: () => onPress(action, false),
         child: Container(
-          width: 58.r,
-          height: 58.r,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8.r),
             border: Border.all(color: context.primary.withOpacity(0.34)),
@@ -280,7 +426,7 @@ class _DPad extends StatelessWidget {
             ],
           ),
           child: Center(
-            child: Icon(icon, color: context.textSecondary, size: 32.r),
+            child: Icon(icon, color: context.textSecondary, size: size * 0.55),
           ),
         ),
       ),
@@ -289,30 +435,77 @@ class _DPad extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _btn(context, Icons.keyboard_arrow_up_rounded, 'dpad_up'),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _btn(context, Icons.keyboard_arrow_left_rounded, 'dpad_left'),
-            SizedBox(width: 52.r, height: 52.r),
-            _btn(context, Icons.keyboard_arrow_right_rounded, 'dpad_right'),
-          ],
-        ),
-        _btn(context, Icons.keyboard_arrow_down_rounded, 'dpad_down'),
-      ],
+    final size = math.min(width, height) / 3;
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Stack(
+        children: [
+          Positioned(
+            left: (width - size) / 2,
+            top: 0,
+            child: _btn(
+              context,
+              Icons.keyboard_arrow_up_rounded,
+              'dpad_up',
+              size,
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: (height - size) / 2,
+            child: _btn(
+              context,
+              Icons.keyboard_arrow_left_rounded,
+              'dpad_left',
+              size,
+            ),
+          ),
+          Positioned(
+            right: 0,
+            top: (height - size) / 2,
+            child: _btn(
+              context,
+              Icons.keyboard_arrow_right_rounded,
+              'dpad_right',
+              size,
+            ),
+          ),
+          Positioned(
+            left: (width - size) / 2,
+            bottom: 0,
+            child: _btn(
+              context,
+              Icons.keyboard_arrow_down_rounded,
+              'dpad_down',
+              size,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _ABXYButtons extends StatelessWidget {
+  final double width;
+  final double height;
   final void Function(String, bool) onPress;
 
-  const _ABXYButtons({required this.onPress});
+  const _ABXYButtons({
+    required this.width,
+    required this.height,
+    required this.onPress,
+  });
 
-  Widget _btn(BuildContext context, String label, String action, Color color) {
+  Widget _btn(
+    BuildContext context,
+    String label,
+    String action,
+    Color color,
+    double size,
+  ) {
     return Material(
       color: color.withOpacity(0.88),
       shape: const CircleBorder(),
@@ -322,8 +515,8 @@ class _ABXYButtons extends StatelessWidget {
         onTapUp: (_) => onPress(action, false),
         onTapCancel: () => onPress(action, false),
         child: Container(
-          width: 66.r,
-          height: 66.r,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white.withOpacity(0.24)),
@@ -351,30 +544,58 @@ class _ABXYButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final buttonSize = math.min(width, height) * 0.37;
+    final midX = (width - buttonSize) / 2;
+    final midY = (height - buttonSize) / 2;
+
     return SizedBox(
-      width: 178.r,
-      height: 178.r,
+      width: width,
+      height: height,
       child: Stack(
         children: [
           Positioned(
-            left: 56.r,
+            left: midX,
             top: 0,
-            child: _btn(context, 'Y', 'button_y', const Color(0xFFEAB308)),
+            child: _btn(
+              context,
+              'Y',
+              'button_y',
+              const Color(0xFFEAB308),
+              buttonSize,
+            ),
           ),
           Positioned(
             left: 0,
-            top: 56.r,
-            child: _btn(context, 'X', 'button_x', const Color(0xFF2563EB)),
+            top: midY,
+            child: _btn(
+              context,
+              'X',
+              'button_x',
+              const Color(0xFF2563EB),
+              buttonSize,
+            ),
           ),
           Positioned(
-            left: 112.r,
-            top: 56.r,
-            child: _btn(context, 'B', 'button_b', const Color(0xFFEF4444)),
+            right: 0,
+            top: midY,
+            child: _btn(
+              context,
+              'B',
+              'button_b',
+              const Color(0xFFEF4444),
+              buttonSize,
+            ),
           ),
           Positioned(
-            left: 56.r,
-            top: 112.r,
-            child: _btn(context, 'A', 'button_a', const Color(0xFF22C55E)),
+            left: midX,
+            bottom: 0,
+            child: _btn(
+              context,
+              'A',
+              'button_a',
+              const Color(0xFF22C55E),
+              buttonSize,
+            ),
           ),
         ],
       ),
@@ -382,59 +603,51 @@ class _ABXYButtons extends StatelessWidget {
   }
 }
 
-class _ShoulderButtons extends StatelessWidget {
-  final String side;
+class _ShoulderButton extends StatelessWidget {
+  final String label;
+  final String action;
   final void Function(String, bool) onPress;
 
-  const _ShoulderButtons({required this.side, required this.onPress});
+  const _ShoulderButton({
+    required this.label,
+    required this.action,
+    required this.onPress,
+  });
 
-  Widget _btn(BuildContext context, String label, String action) {
-    return Padding(
-      padding: EdgeInsets.all(4.dp),
-      child: Material(
-        color: context.card.withOpacity(0.95),
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.card.withOpacity(0.95),
+      borderRadius: BorderRadius.circular(10.r),
+      child: InkWell(
         borderRadius: BorderRadius.circular(10.r),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10.r),
-          onTapDown: (_) => onPress(action, true),
-          onTapUp: (_) => onPress(action, false),
-          onTapCancel: () => onPress(action, false),
-          child: Container(
-            width: 110.r,
-            height: 50.r,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10.r),
-              border: Border.all(color: context.primary.withOpacity(0.4)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.16),
-                  blurRadius: 12.r,
-                  offset: Offset(0, 6.h),
-                ),
-              ],
-            ),
-            child: Text(
-              label,
-              style: context.labelSmall.copyWith(
-                color: context.textSecondary,
-                fontWeight: FontWeight.w800,
+        onTapDown: (_) => onPress(action, true),
+        onTapUp: (_) => onPress(action, false),
+        onTapCancel: () => onPress(action, false),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10.r),
+            border: Border.all(color: context.primary.withOpacity(0.4)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.16),
+                blurRadius: 12.r,
+                offset: Offset(0, 6.h),
               ),
+            ],
+          ),
+          child: Text(
+            label,
+            style: context.labelSmall.copyWith(
+              color: context.textSecondary,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isLeft = side == 'left';
-    return Column(
-      children: [
-        _btn(context, isLeft ? 'LB' : 'RB', isLeft ? 'button_lb' : 'button_rb'),
-        _btn(context, isLeft ? 'LT' : 'RT', isLeft ? 'button_lt' : 'button_rt'),
-      ],
     );
   }
 }

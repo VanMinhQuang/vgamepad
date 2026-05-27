@@ -1,4 +1,5 @@
 import 'package:app_controller/features/connect/view/connect_screen.dart';
+import 'package:app_controller/features/config/view/config_screen.dart';
 import 'package:app_controller/features/gamepad/data/gamepad_connection.dart';
 import 'package:app_controller/features/gamepad/view/gamepad_screen.dart';
 import 'package:flutter/cupertino.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 
 class Routes {
   static const String CONNECT = '/connect_screen';
+  static const String CONFIG = '/config_screen';
   static const String GAMEPAD = '/gamepad_screen';
 }
 
@@ -35,6 +37,7 @@ class AppRoute {
 
   static final Map<String, Widget Function(RouteSettings)> _appRoutes = {
     Routes.CONNECT: (_) => const ConnectScreen(),
+    Routes.CONFIG: (_) => const ConfigScreen(),
     Routes.GAMEPAD: (settings) {
       final connection = settings.arguments as GamepadConnection;
       return GamepadScreen(connection: connection);
